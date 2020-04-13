@@ -116,6 +116,7 @@ class PyTarql:
                             help='File containing a SPARQL query to be '
                             'applied to an input file')
         parser.add_argument('input', type=argparse.FileType('r'), nargs='?',
+                            default=sys.stdin,
                             help="CSV to be processed, omit to use STDIN")
 
         return parser.parse_args(args=arguments)
