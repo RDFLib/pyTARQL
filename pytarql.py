@@ -7,6 +7,7 @@ from collections import OrderedDict
 import csv
 import argparse
 import sys
+import re
 
 import rdflib
 from rdflib.plugins.sparql import prepareQuery
@@ -75,6 +76,41 @@ class NoHeaderReader:
 class PyTarql:
     """Transform CSV to RDF."""
 
+    def __init__(self):
+        """Initialize transform."""
+        # Used to translate invalid characters in column headers
+        self._cached_headers = None
+        self._reader = None
+        self._namespaces_printed = False
+        self._args = None
+        self._graph = None
+
+    def var_mapping(self, row):
+        if isinstance(self._reader, NoHeaderReader):
+            return dict(zip(row.keys(), row.keys()))
+
+        invalid_pattern = re.compile(r'[^\w_]+')
+        return dict((k, invalid_pattern.sub('_', k)) for k in row)
+
+    def create_reader(self):
+        delimiter = '\t' if self._args.tab else self._args.delimiter
+        if self._args.no_header_row:
+            self._reader = NoHeaderReader(self._args.input,
+                                          delimiter=delimiter,
+                                          escapechar=self._args.escapechar,
+                                          quotechar=self._args.quotechar)
+        else:
+            self._reader = csv.DictReader(self._args.input,
+                                          delimiter=delimiter,
+                                          escapechar=self._args.escapechar,
+                                          quotechar=self._args.quotechar)
+
+    def bindings(self):
+        for row in self._reader:
+            if self._cached_headers is None:
+                self._cached_headers = self.var_mapping(row)
+            yield dict((self._cached_headers[k], rdflib.Literal(row[k])) for k in row)
+
     @staticmethod
     def parse_args(arguments):
         """Command line arguments."""
@@ -121,56 +157,51 @@ class PyTarql:
 
         return parser.parse_args(args=arguments)
 
+    def emit(self, output, trips):
+        for triple in trips:
+            self._graph.add(triple)
+        serialized = self._graph.serialize(
+            format=self._args.output_format).decode('utf-8')
+        # When writing turtle, only emit the namespaces first time
+        if self._namespaces_printed and self._args.output_format == 'turtle':
+            serialized = serialized.split('\n\n', 1)[1]
+        else:
+            self._namespaces_printed = True
+        output.write(serialized.strip())
+        for triple in self._graph.triples((None, None, None)):
+            self._graph.remove(triple)
+
     def transform(self, arguments, output):
         """Transform CSV to RDF."""
-        args = self.parse_args(arguments)
-        graph = rdflib.Graph()
+        self._args = self.parse_args(arguments)
+        self._graph = rdflib.Graph()
 
         # Pre-parse query
-        query = prepareQuery(args.query.read())
+        query = prepareQuery(self._args.query.read())
         # Transfer namespaces from query to graph for serialization
         for prefix, uri in query.prologue.namespace_manager.namespaces():
-            graph.bind(prefix, uri)
+            self._graph.bind(prefix, uri)
 
-        delimiter = '\t' if args.tab else args.delimiter
-        if args.no_header_row:
-            reader = NoHeaderReader(args.input,
-                                    delimiter=delimiter,
-                                    escapechar=args.escapechar,
-                                    quotechar=args.quotechar)
-        else:
-            reader = csv.DictReader(args.input,
-                                    delimiter=delimiter,
-                                    escapechar=args.escapechar,
-                                    quotechar=args.quotechar)
-
-        namespaces_printed = False
+        self._namespaces_printed = False
         trips = []
 
-        for row in reader:
-            results = graph.query(
-                query,
-                initBindings=dict((k, rdflib.Literal(row[k])) for k in row))
+        self.create_reader()
+
+        for row in self.bindings():
+            results = self._graph.query(query, initBindings=row)
             trips.extend(results)
 
             if not trips:
                 continue
 
             # Dump triples when dedup window is full (or every row if not specified)
-            if not args.dedup or len(trips) > args.dedup:
-                for triple in trips:
-                    graph.add(triple)
-                serialized = graph.serialize(format=args.output_format).decode('utf-8')
-                # When writing turtle, only emit the namespaces first time
-                if namespaces_printed and args.output_format == 'turtle':
-                    serialized = serialized.split('\n\n', 1)[1]
-                else:
-                    namespaces_printed = True
-                output.write(serialized.strip())
+            if not self._args.dedup or len(trips) > self._args.dedup:
+                self.emit(output, trips)
                 trips = []
-                for triple in graph.triples((None, None, None)):
-                    graph.remove(triple)
 
+        # Any left over?
+        if trips:
+            self.emit(output, trips)
 
 if __name__ == '__main__':
     PyTarql().transform(sys.argv[1:], output=sys.stdout)
