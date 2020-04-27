@@ -10,7 +10,7 @@ setuptools.setup(
     version="0.5.0",
     author="Boris Pelakh",
     author_email="boris.pelakh@semanticarts.com",
-    description="Transform CSV to RDF using CONSTRUCT query",
+    description="PyTARQL transforms CSV data to RDF using CONSTRUCT query",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/semanticarts/ontology-toolkit",
