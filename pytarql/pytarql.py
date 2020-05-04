@@ -1,7 +1,4 @@
-# -*- coding: utf-8 -*-
-"""
-Python implementation of TARQL (https://tarql.github.io/)
-"""
+"""Python implementation of TARQL (https://tarql.github.io/)."""
 
 from collections import OrderedDict
 import csv
@@ -14,16 +11,22 @@ from rdflib.plugins.sparql import prepareQuery
 
 
 class SingleCharType:
-    """
+    """Argument validator for separators and delimiters.
+
     Supports single char arguments or special strings translated to single
     char values.
     """
 
+    # No need for more public methods.
+    # pylint: disable=R0903
+
     def __init__(self, description, mappings):
+        """Init mappings."""
         self._description = description
         self._mappings = mappings
 
     def __call__(self, value):
+        """Interpret argument as a single char or one of predefined synonyms."""
         if value in self._mappings:
             return self._mappings[value]
         if isinstance(value, str) and len(value) == 1:
@@ -36,17 +39,20 @@ class SingleCharType:
 class NoHeaderReader:
     """Automatically assigns field names ?a, ?b, ?c, ... to row values."""
 
-    def __init__(self, f, dialect="excel", *args, **kwds):
+    def __init__(self, f, dialect="excel", *args, **kwds):  # pylint: disable=W1113
+        """Create wrapper reader."""
         self._fieldnames = []   # list of keys for the dict
         self.reader = csv.reader(f, dialect, *args, **kwds)
         self.dialect = dialect
         self.line_num = 0
 
     def __iter__(self):
+        """I am my own iterator."""
         return self
 
     @staticmethod
     def _toletters(num):
+        """Produce a pseudo var name 'a'..'z', 'aa'-'az', etc."""
         letters = ''
         while num > 26:
             div, mod = divmod(num, 26)
@@ -62,6 +68,7 @@ class NoHeaderReader:
         return self._fieldnames[:length]
 
     def __next__(self):
+        """Next CSV row, adjusting headers if number of fields has increased."""
         row = next(self.reader)
 
         # unlike the basic reader, we prefer not to return blanks,
@@ -86,6 +93,7 @@ class PyTarql:
         self._graph = None
 
     def var_mapping(self, row):
+        """Convert CSV row to a set of variable mappings."""
         if isinstance(self._reader, NoHeaderReader):
             return dict(zip(row.keys(), row.keys()))
 
@@ -93,6 +101,7 @@ class PyTarql:
         return dict((k, invalid_pattern.sub('_', k)) for k in row)
 
     def create_reader(self):
+        """Configure reader with options as per command line args."""
         delimiter = '\t' if self._args.tab else self._args.delimiter
         if self._args.no_header_row:
             self._reader = NoHeaderReader(self._args.input,
@@ -106,6 +115,7 @@ class PyTarql:
                                           quotechar=self._args.quotechar)
 
     def bindings(self):
+        """Produce the next set of bindings."""
         for row in self._reader:
             if self._cached_headers is None:
                 self._cached_headers = self.var_mapping(row)
@@ -158,6 +168,10 @@ class PyTarql:
         return parser.parse_args(args=arguments)
 
     def emit(self, output, trips):
+        """Dump accumulated triples.
+
+        When generating turtle, skip namespaces in all but the first time.
+        """
         for triple in trips:
             self._graph.add(triple)
         serialized = self._graph.serialize(
@@ -203,5 +217,11 @@ class PyTarql:
         if trips:
             self.emit(output, trips)
 
-if __name__ == '__main__':
+
+def run():
+    """Invoke entry point."""
     PyTarql().transform(sys.argv[1:], output=sys.stdout)
+
+
+if __name__ == '__main__':
+    run()
