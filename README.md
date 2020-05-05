@@ -9,7 +9,7 @@ usage: pytarql [-h] [-d DELIMITER | -t] [-p ESCAPECHAR]
                [--quotechar QUOTECHAR] [--dedup DEDUP] [--ntriples] [-H]
                query [input]
 
-PyTARQL CSV to RDF converter (Table SPARQL).
+pyTARQL CSV to RDF converter (Table SPARQL).
 
 positional arguments:
   query                 File containing a SPARQL query to be applied to an
