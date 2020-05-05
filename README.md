@@ -1,4 +1,6 @@
-# PyTARQL
+![](pyTARQL-250.png)
+
+# pyTARQL
 Python implementation of [TARQL](https://tarql.github.io/), based on 
 [RDFLib](https://github.com/RDFLib/rdflib).
 
