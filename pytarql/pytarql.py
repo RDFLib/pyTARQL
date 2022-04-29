@@ -119,7 +119,12 @@ class PyTarql:
         for row in self._reader:
             if self._cached_headers is None:
                 self._cached_headers = self.var_mapping(row)
-            yield dict((self._cached_headers[k], rdflib.Literal(row[k])) for k in row)
+            yield dict((self._cached_headers[k], rdflib.Literal(row[k])) for k in row if self.is_bound(row[k]))
+
+    @staticmethod
+    def is_bound(value):
+        """Checks whether a value taken from a CSV cell is considered an unbound SPARQL value"""
+        return not re.match(r"^\s*$", value)
 
     @staticmethod
     def parse_args(arguments):
